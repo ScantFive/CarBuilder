@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import type RAPIER_NS from '@dimforge/rapier3d-compat';
 import type { CarDesign } from '../model/car';
-import { computeMassProperties, spawnHeight, steerSign } from '../model/physicsProps';
+import { computeMassProperties, spawnHeight, steerSign, SUSPENSION_REST } from '../model/physicsProps';
 import { buildCarMeshes, buildWheelMesh } from '../editor/carMeshes';
 import type { DriveOutput } from './driveModel';
 
 type Rapier = typeof RAPIER_NS;
 
-export const SUSPENSION_REST = 0.3;
+
 const SUSPENSION = { stiffness: 30, compression: 4.4, relaxation: 2.3, frictionSlip: 2.5, maxTravel: 0.3, sideFrictionStiffness: 1 };
 const BEAM_RADIUS = 0.05;
 const GRAVITY = 9.81;
