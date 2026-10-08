@@ -19,7 +19,8 @@ export function parseTrack(json: unknown): TrackData {
   if (!Array.isArray(t.points) || t.points.length < 10) fail('слишком мало точек');
   const points = (t.points as unknown[]).map((p) => {
     if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => typeof v === 'number' && Number.isFinite(v))) fail('неверная точка');
-    return [p[0], p[1]] as [number, number];
+    const q = p as number[];
+    return [q[0], q[1]] as [number, number];
   });
   const startIndex = typeof t.startIndex === 'number' ? t.startIndex : 0;
   if (!Number.isInteger(startIndex) || startIndex < 0 || startIndex >= points.length) fail('неверный старт');
