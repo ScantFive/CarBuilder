@@ -122,11 +122,6 @@ export class TestDrive {
     vehicle.syncVisuals();
     placeCamera(1);
 
-    if (import.meta.env.DEV) {
-      // Debug handle for automated browser checks (dev server only).
-      (window as unknown as { __drive?: unknown }).__drive = { vehicle, track, input: this.input, laps, tangents };
-    }
-
     let steer = 0;
     let acc = 0;
     let last = performance.now();
