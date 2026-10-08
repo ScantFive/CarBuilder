@@ -3,6 +3,7 @@ import { Editor } from './editor/Editor';
 import type { CarDesign } from './model/car';
 import { CarStorage } from './storage/carStorage';
 import { TestDrive } from './sim/TestDrive';
+import { BodyEditor } from './body/BodyEditor';
 
 function safeLocalStorage(): Storage | null {
   try {
@@ -33,6 +34,7 @@ app.appendChild(driveRoot);
 let drive: TestDrive | null = null;
 
 function showEditor(): void {
+  bodyEditor.setActive(false);
   drive?.dispose();
   drive = null;
   driveRoot.hidden = true;
@@ -45,8 +47,20 @@ function showTestDrive(c: CarDesign): void {
   drive = new TestDrive(driveRoot, c, storage, () => showEditor());
 }
 
+const bodyRoot = document.createElement('div');
+bodyRoot.className = 'screen';
+bodyRoot.hidden = true;
+app.appendChild(bodyRoot);
+const bodyEditor = new BodyEditor(bodyRoot, storage, (c) => {
+  bodyEditor.setActive(false);
+  editor.setDesign(c);
+  showEditor();
+});
+
 function showBodyEditor(): void {
-  // Body editor screen is added in the next step.
+  editor.setActive(false);
+  bodyEditor.open(editor.getDesign());
+  bodyEditor.setActive(true);
 }
 
 showEditor();

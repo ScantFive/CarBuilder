@@ -6,6 +6,7 @@ import { validateCar } from '../model/validate';
 import { CarStorage, exportCar, importCarFile } from '../storage/carStorage';
 import { buildCarMeshes, COLORS, disposeGroup, type PartKind } from './carMeshes';
 import { History } from './history';
+import { buildEditorFloor } from './floor';
 import { createPanel, MODES, type Mode, type PanelRefs } from './panel';
 import { addBeam, addNode, BOUNDS, deleteBeam, deleteNode, moveNode, normalizePoint, removeWheel, setEngine, setWheel } from './symmetry';
 
@@ -61,7 +62,7 @@ export class Editor {
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
     sun.position.set(4, 8, 3);
     this.scene.add(sun);
-    this.scene.add(this.buildFloor());
+    this.scene.add(buildEditorFloor());
     this.scene.add(this.workPlane);
     this.buildWorkPlane();
 
@@ -137,28 +138,6 @@ export class Editor {
   }
 
   // ---------- scene ----------
-
-  private buildFloor(): THREE.Object3D {
-    const g = new THREE.Group();
-    const grid = new THREE.GridHelper(20, 20, 0x4a5060, 0x3a3f4b);
-    g.add(grid);
-    // Forward arrow and label (+Z is the front of the car).
-    const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.01, BOUNDS.z + 0.2), 0.8, 0x46e08a, 0.3, 0.2);
-    g.add(arrow);
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#46e08a';
-    ctx.font = 'bold 40px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('ПЕРЕД', 128, 46);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-    sprite.scale.set(1.2, 0.3, 1);
-    sprite.position.set(0, 0.3, BOUNDS.z + 1.3);
-    g.add(sprite);
-    return g;
-  }
 
   private buildWorkPlane(): void {
     const pts: number[] = [];

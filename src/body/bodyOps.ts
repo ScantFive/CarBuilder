@@ -9,7 +9,7 @@ const SAME = 0.01;
 const DUPLICATE_OFFSET = 0.1;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const round = (v: number, step: number) => Math.round(v / step) * step + 0;
+const round = (v: number, step: number) => Number((Math.round(v / step) * step).toFixed(6)) + 0;
 
 function withBody(c: CarDesign): CarDesign & { body: BodyDesign } {
   const out = structuredClone(c);
