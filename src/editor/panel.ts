@@ -2,7 +2,7 @@ export type Mode = 'node' | 'beam' | 'wheel' | 'engine' | 'move' | 'delete';
 
 export const MODES: { mode: Mode; label: string; hint: string }[] = [
   { mode: 'node', label: 'Узел', hint: 'Клик по рабочей плоскости — новый узел. Q/E — высота плоскости.' },
-  { mode: 'beam', label: 'Балка', hint: 'Клик по двум узлам соединяет их балкой.' },
+  { mode: 'beam', label: 'Балка', hint: 'Клик по двум узлам (или узлу и жёлтой точке крепления кузова) соединяет их балкой.' },
   { mode: 'wheel', label: 'Колесо', hint: 'Клик по узлу ставит или выбирает колесо.' },
   { mode: 'engine', label: 'Двигатель', hint: 'Клик по узлу переносит туда двигатель.' },
   { mode: 'move', label: 'Перемещение', hint: 'Тяните узел по плоскости; с Shift — по высоте.' },
@@ -16,6 +16,8 @@ export interface PanelRefs {
   planeHeight: HTMLInputElement;
   planeHeightValue: HTMLElement;
   mirror: HTMLInputElement;
+  showBody: HTMLInputElement;
+  btnBody: HTMLButtonElement;
   name: HTMLInputElement;
   errors: HTMLUListElement;
   stats: HTMLElement;
@@ -51,6 +53,7 @@ const html = `
   <p class="hint" data-testid="mode-hint"></p>
   <label class="row">Плоскость <input data-testid="plane-height" type="range" min="0" max="1.5" step="0.1" class="grow"><span class="val" data-ref="phv"></span> м</label>
   <label class="row"><input data-testid="mirror" type="checkbox"> Симметрия слева/справа</label>
+  <label class="row"><input data-testid="show-body" type="checkbox" checked> Показать кузов</label>
   <div class="row"><button data-testid="btn-undo" title="Ctrl+Z">↶ Отменить</button><button data-testid="btn-redo" title="Ctrl+Shift+Z">↷ Повторить</button></div>
 </div>
 <div class="panel-section" data-ref="wheelBox" hidden>
@@ -64,6 +67,7 @@ const html = `
   <h2>Машина</h2>
   <div class="stats" data-testid="stats"></div>
   <ul class="errors" data-testid="errors"></ul>
+  <button data-testid="btn-body" class="wide">🚗 Кузов…</button>
   <button class="primary" data-testid="btn-test">▶ Тест</button>
 </div>
 <div class="panel-section">
@@ -104,6 +108,8 @@ export function createPanel(container: HTMLElement): PanelRefs {
     planeHeight: t('plane-height'),
     planeHeightValue: r('phv'),
     mirror: t('mirror'),
+    showBody: t('show-body'),
+    btnBody: t('btn-body'),
     name: t('car-name'),
     errors: t('errors'),
     stats: t('stats'),

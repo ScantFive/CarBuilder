@@ -1,5 +1,6 @@
 import { newId, WHEEL_RADIUS_DEFAULT, WHEEL_RADIUS_MAX, WHEEL_RADIUS_MIN, type CarDesign, type Wheel } from '../model/car';
 import { defaultWheelRoles, type Vec3 } from '../model/physicsProps';
+import { mirrorMountOf } from '../body/bodyOps';
 
 /** Editing operations on CarDesign. All are pure and optionally mirrored across x=0. */
 
@@ -25,8 +26,9 @@ function nodeAt(c: CarDesign, p: Vec3): string | null {
   return n ? n.id : null;
 }
 
-/** Id of the node mirrored across x=0, or null for centre nodes / nodes without a partner. */
+/** Id of the node (or body mount) mirrored across x=0, or null for centre points / points without a partner. */
 export function mirrorOf(c: CarDesign, nodeId: string): string | null {
+  if (c.body?.mounts.some((m) => m.id === nodeId)) return mirrorMountOf(c, nodeId);
   const n = c.nodes.find((q) => q.id === nodeId);
   if (!n || Math.abs(n.x) < CENTRE) return null;
   return nodeAt(c, { x: -n.x, y: n.y, z: n.z });
@@ -61,7 +63,7 @@ export function addBeam(c: CarDesign, a: string, b: string, mirror: boolean): Ca
 }
 
 function isCentre(c: CarDesign, id: string): boolean {
-  const n = c.nodes.find((q) => q.id === id);
+  const n = c.nodes.find((q) => q.id === id) ?? c.body?.mounts.find((m) => m.id === id);
   return !!n && Math.abs(n.x) < CENTRE;
 }
 

@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import type RAPIER_NS from '@dimforge/rapier3d-compat';
 import type { CarDesign } from '../model/car';
-import { computeMassProperties, spawnHeight, steerSign } from '../model/physicsProps';
+import { computeMassProperties, endpointPos, spawnHeight, steerSign, SUSPENSION_REST } from '../model/physicsProps';
+import { partVertices } from '../model/body';
 import { buildCarMeshes, buildWheelMesh } from '../editor/carMeshes';
 import type { DriveOutput } from './driveModel';
 
 type Rapier = typeof RAPIER_NS;
 
-export const SUSPENSION_REST = 0.3;
 const SUSPENSION = { stiffness: 30, compression: 4.4, relaxation: 2.3, frictionSlip: 2.5, maxTravel: 0.3, sideFrictionStiffness: 1 };
 const BEAM_RADIUS = 0.05;
+const BODY_FRICTION = 0.3;
+const DEG = Math.PI / 180;
 const GRAVITY = 9.81;
 /** Service brake deceleration (in g) at full pedal. */
 const BRAKE_G = 1.6;
@@ -48,8 +50,8 @@ export function createVehicle(R: Rapier, world: RAPIER_NS.World, c: CarDesign, s
   // Chassis colliders carry no mass: mass properties come from the design.
   const up = new THREE.Vector3(0, 1, 0);
   for (const b of c.beams) {
-    const a = nodes.get(b.a);
-    const e = nodes.get(b.b);
+    const a = endpointPos(c, b.a);
+    const e = endpointPos(c, b.b);
     if (!a || !e) continue;
     const va = new THREE.Vector3(a.x, a.y, a.z);
     const ve = new THREE.Vector3(e.x, e.y, e.z);
@@ -65,6 +67,16 @@ export function createVehicle(R: Rapier, world: RAPIER_NS.World, c: CarDesign, s
   if (c.engine) {
     const n = nodes.get(c.engine.node);
     if (n) world.createCollider(R.ColliderDesc.cuboid(0.2, 0.15, 0.2).setTranslation(n.x, n.y, n.z).setDensity(0), body);
+  }
+  for (const p of c.body?.parts ?? []) {
+    let desc: RAPIER_NS.ColliderDesc | null;
+    if (p.shape === 'box' || p.shape === 'wing') {
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rotation.x * DEG, p.rotation.y * DEG, p.rotation.z * DEG, 'XYZ'));
+      desc = R.ColliderDesc.cuboid(p.size.x / 2, p.size.y / 2, p.size.z / 2).setTranslation(p.position.x, p.position.y, p.position.z).setRotation(q);
+    } else {
+      desc = R.ColliderDesc.convexHull(new Float32Array(partVertices(p).flatMap((v) => [v.x, v.y, v.z])));
+    }
+    if (desc) world.createCollider(desc.setDensity(0).setFriction(BODY_FRICTION), body);
   }
   for (const w of c.wheels) {
     const n = nodes.get(w.node);
@@ -91,7 +103,7 @@ export function createVehicle(R: Rapier, world: RAPIER_NS.World, c: CarDesign, s
   const allSteer = wheels.every((w) => w.steering);
 
   // Visuals: chassis meshes plus separately animated wheels.
-  const group = buildCarMeshes(c, { withWheels: false });
+  const group = buildCarMeshes(c, { withWheels: false, body: 'solid' });
   const wheelMeshes = wheels.map((w) => {
     const holder = new THREE.Group();
     const spin = buildWheelMesh(w.radius, w.steering, w.driven);

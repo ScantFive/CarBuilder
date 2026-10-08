@@ -1,8 +1,12 @@
 import type { CarDesign, CarNode, Wheel } from './car';
+import { partMass } from './body';
 
 export type Vec3 = { x: number; y: number; z: number };
 
 export const MASS = { beamPerMeter: 8, engine: 150, wheel: 10 };
+
+/** Suspension spring length at rest, metres. */
+export const SUSPENSION_REST = 0.3;
 
 /** Engine closer than this to the COM (along z) counts as mid-engine: all wheels driven. */
 const MID_ENGINE_THRESHOLD = 0.3;
@@ -16,12 +20,20 @@ function nodeMap(c: CarDesign): Map<string, CarNode> {
   return new Map(c.nodes.map((n) => [n.id, n]));
 }
 
+/** Position of a beam endpoint: a frame node or a body mount. */
+export function endpointPos(c: CarDesign, id: string): Vec3 | undefined {
+  const n = c.nodes.find((q) => q.id === id) ?? c.body?.mounts.find((m) => m.id === id);
+  return n ? { x: n.x, y: n.y, z: n.z } : undefined;
+}
+
 function pointMasses(c: CarDesign): PointMass[] {
   const nodes = nodeMap(c);
+  const endpoints = new Map<string, Vec3>([...nodes, ...(c.body?.mounts.map((m) => [m.id, m] as const) ?? [])]);
   const out: PointMass[] = [];
+  for (const p of c.body?.parts ?? []) out.push({ m: partMass(p), p: p.position });
   for (const b of c.beams) {
-    const a = nodes.get(b.a);
-    const e = nodes.get(b.b);
+    const a = endpoints.get(b.a);
+    const e = endpoints.get(b.b);
     if (!a || !e) continue;
     const m = Math.hypot(e.x - a.x, e.y - a.y, e.z - a.z) * MASS.beamPerMeter;
     if (m <= 0) continue;
