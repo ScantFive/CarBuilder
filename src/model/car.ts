@@ -1,3 +1,5 @@
+import { BODY_LIMITS, BODY_SHAPES, type BodyDesign, type BodyMount, type BodyPart, type BodyShape } from './body';
+
 export interface CarNode {
   id: string;
   x: number;
@@ -20,12 +22,13 @@ export interface Wheel {
 }
 
 export interface CarDesign {
-  version: 1;
+  version: 2;
   name: string;
   nodes: CarNode[];
   beams: Beam[];
   wheels: Wheel[];
   engine: { node: string } | null;
+  body: BodyDesign | null;
 }
 
 export const WHEEL_RADIUS_MIN = 0.2;
@@ -47,7 +50,7 @@ export function newId(prefix: string): string {
 }
 
 export function createEmptyCar(name: string): CarDesign {
-  return { version: 1, name, nodes: [], beams: [], wheels: [], engine: null };
+  return { version: 2, name, nodes: [], beams: [], wheels: [], engine: null, body: null };
 }
 
 /** Rectangular 1.8 x 4 m frame, front steering, rear drive, engine at the back. */
@@ -82,13 +85,19 @@ export function createTemplateCar(): CarDesign {
     driven: !front,
   });
   return {
-    version: 1,
+    version: 2,
     name: 'Шаблон',
     nodes,
     beams,
     wheels: [wheel('fr', true), wheel('fl', true), wheel('rr', false), wheel('rl', false)],
     engine: { node: 'en' },
+    body: null,
   };
+}
+
+/** Ids a beam may connect: frame nodes and body mounts. */
+export function endpointIds(c: CarDesign): Set<string> {
+  return new Set([...c.nodes.map((n) => n.id), ...(c.body?.mounts.map((m) => m.id) ?? [])]);
 }
 
 export function serializeCar(c: CarDesign): string {
@@ -112,7 +121,7 @@ export function parseCar(json: string): CarDesign {
   };
   if (!isObj(raw)) fail('ожидался объект');
   const r = raw as Record<string, unknown>;
-  if (r.version !== 1) fail('неподдерживаемая версия');
+  if (r.version !== 1 && r.version !== 2) fail('неподдерживаемая версия');
   if (!isStr(r.name)) fail('нет имени');
   if (!Array.isArray(r.nodes) || !Array.isArray(r.beams) || !Array.isArray(r.wheels)) fail('нет списков узлов/балок/колёс');
 
@@ -128,10 +137,18 @@ export function parseCar(json: string): CarDesign {
     return id as string;
   };
 
+  const body = r.body === undefined || r.body === null ? null : parseBody(r.body, fail);
+  const endpoints = new Set([...ids, ...(body?.mounts.map((m) => m.id) ?? [])]);
+  if (endpoints.size !== ids.size + (body?.mounts.length ?? 0)) fail('повторяющиеся id точек крепления');
+  const endpoint = (id: unknown) => {
+    if (!isStr(id) || !endpoints.has(id)) fail('балка ссылается на несуществующий узел или точку крепления');
+    return id as string;
+  };
+
   const beams: Beam[] = (r.beams as unknown[]).map((v) => {
     if (!isObj(v) || !isStr(v.id)) fail('неверная балка');
     const o = v as Record<string, unknown>;
-    return { id: o.id as string, a: ref(o.a), b: ref(o.b) };
+    return { id: o.id as string, a: endpoint(o.a), b: endpoint(o.b) };
   });
 
   const wheels: Wheel[] = (r.wheels as unknown[]).map((v) => {
@@ -150,5 +167,36 @@ export function parseCar(json: string): CarDesign {
     engine = { node: ref((r.engine as Record<string, unknown>).node) };
   }
 
-  return { version: 1, name: r.name as string, nodes, beams, wheels, engine };
+  return { version: 2, name: r.name as string, nodes, beams, wheels, engine, body };
+}
+
+const isVec = (v: unknown): v is { x: number; y: number; z: number } => isObj(v) && isNum(v.x) && isNum(v.y) && isNum(v.z);
+
+function parseBody(raw: unknown, fail: (what: string) => never): BodyDesign {
+  if (!isObj(raw) || !Array.isArray(raw.parts) || !Array.isArray(raw.mounts)) fail('неверный кузов');
+  const b = raw as { parts: unknown[]; mounts: unknown[] };
+  const parts: BodyPart[] = b.parts.map((v) => {
+    if (!isObj(v) || !isStr(v.id) || !isVec(v.position) || !isVec(v.rotation) || !isVec(v.size)) fail('неверная деталь кузова');
+    const o = v as Record<string, unknown>;
+    if (!BODY_SHAPES.includes(o.shape as BodyShape)) fail('неизвестная форма детали');
+    if (!isStr(o.color) || !/^#[0-9a-fA-F]{6}$/.test(o.color)) fail('неверный цвет детали');
+    const size = o.size as BodyPart['size'];
+    if ([size.x, size.y, size.z].some((s) => s < BODY_LIMITS.sizeMin || s > BODY_LIMITS.sizeMax)) fail('размер детали вне диапазона');
+    const { x, y, z } = o.position as BodyPart['position'];
+    const r = o.rotation as BodyPart['rotation'];
+    return {
+      id: o.id as string,
+      shape: o.shape as BodyShape,
+      position: { x, y, z },
+      rotation: { x: r.x, y: r.y, z: r.z },
+      size: { x: size.x, y: size.y, z: size.z },
+      color: o.color as string,
+    };
+  });
+  const mounts: BodyMount[] = b.mounts.map((v) => {
+    if (!isObj(v) || !isStr(v.id) || !isNum(v.x) || !isNum(v.y) || !isNum(v.z)) fail('неверная точка крепления');
+    const o = v as Record<string, number | string>;
+    return { id: o.id as string, x: o.x as number, y: o.y as number, z: o.z as number };
+  });
+  return { parts, mounts };
 }
