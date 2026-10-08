@@ -30,6 +30,7 @@ export class Editor {
   private mode: Mode = 'node';
   private mirror = true;
   private planeY = 0.3;
+  private showBody = true;
   private beamStart: string | null = null;
   private selectedWheelNode: string | null = null;
   private drag: { id: string; base: CarDesign; vertical: boolean } | null = null;
@@ -43,6 +44,7 @@ export class Editor {
     private readonly root: HTMLElement,
     private readonly storage: CarStorage,
     private readonly onTest: (c: CarDesign) => void,
+    private readonly onOpenBody: () => void,
   ) {
     root.classList.add('editor');
     this.viewport = document.createElement('div');
@@ -195,10 +197,10 @@ export class Editor {
   private rebuildMeshes(): void {
     this.scene.remove(this.carGroup);
     disposeGroup(this.carGroup);
-    this.carGroup = buildCarMeshes(this.design, { showCom: true });
+    this.carGroup = buildCarMeshes(this.design, { showCom: true, body: this.showBody ? 'ghost' : 'mounts' });
     const highlighted = new Set([this.beamStart, this.selectedWheelNode].filter((x): x is string => !!x));
     this.carGroup.traverse((o) => {
-      if (o instanceof THREE.Mesh && o.userData.kind === 'node' && highlighted.has(o.userData.id)) {
+      if (o instanceof THREE.Mesh && (o.userData.kind === 'node' || o.userData.kind === 'mount') && highlighted.has(o.userData.id)) {
         (o.material as THREE.MeshStandardMaterial).color.set(COLORS.highlight);
         o.scale.setScalar(1.6);
       }
@@ -220,7 +222,9 @@ export class Editor {
 
   private refresh(): void {
     if (this.selectedWheelNode && !this.design.wheels.some((w) => w.node === this.selectedWheelNode)) this.selectedWheelNode = null;
-    if (this.beamStart && !this.design.nodes.some((n) => n.id === this.beamStart)) this.beamStart = null;
+    if (this.beamStart && !this.design.nodes.some((n) => n.id === this.beamStart) && !this.design.body?.mounts.some((m) => m.id === this.beamStart)) {
+      this.beamStart = null;
+    }
     this.rebuildMeshes();
     this.updatePanel();
   }
@@ -250,6 +254,11 @@ export class Editor {
     p.planeHeight.addEventListener('input', () => this.setPlaneY(Number(p.planeHeight.value)));
     p.mirror.checked = this.mirror;
     p.mirror.addEventListener('change', () => (this.mirror = p.mirror.checked));
+    p.showBody.addEventListener('change', () => {
+      this.showBody = p.showBody.checked;
+      this.rebuildMeshes();
+    });
+    p.btnBody.addEventListener('click', () => this.onOpenBody());
     p.name.addEventListener('change', () => this.commit({ ...this.design, name: p.name.value.trim() || 'Без имени' }));
     p.btnUndo.addEventListener('click', () => this.undo());
     p.btnRedo.addEventListener('click', () => this.redo());
@@ -450,8 +459,10 @@ export class Editor {
         break;
       }
       case 'beam': {
-        const hit = this.pick(['node']);
-        if (!hit) {
+        const raw = this.pick(['node', 'mount', 'wheel', 'engine']);
+        // Wheels and the engine hide their node: clicking them means their node.
+        const hit = raw && raw.kind === 'wheel' ? { kind: 'node' as const, id: this.wheelNodeOf(raw.id) ?? '' } : raw;
+        if (!hit || !hit.id) {
           this.beamStart = null;
         } else if (!this.beamStart) {
           this.beamStart = hit.id;
@@ -499,8 +510,12 @@ export class Editor {
         break;
       }
       case 'delete': {
-        const hit = this.pick(['wheel', 'engine', 'node', 'beam']);
+        const hit = this.pick(['wheel', 'engine', 'node', 'mount', 'beam']);
         if (!hit) break;
+        if (hit.kind === 'mount') {
+          this.toast('Точки крепления удаляются в окне «Кузов»');
+          break;
+        }
         if (hit.kind === 'node') this.commit(deleteNode(c, hit.id, this.mirror));
         else if (hit.kind === 'beam') this.commit(deleteBeam(c, hit.id, this.mirror));
         else if (hit.kind === 'wheel') {

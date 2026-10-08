@@ -19,7 +19,12 @@ const editorRoot = document.createElement('div');
 editorRoot.className = 'screen';
 app.appendChild(editorRoot);
 
-const editor = new Editor(editorRoot, storage, (c) => showTestDrive(c));
+const editor = new Editor(
+  editorRoot,
+  storage,
+  (c) => showTestDrive(c),
+  () => showBodyEditor(),
+);
 
 const driveRoot = document.createElement('div');
 driveRoot.className = 'screen';
@@ -38,6 +43,10 @@ function showTestDrive(c: CarDesign): void {
   editor.setActive(false);
   driveRoot.hidden = false;
   drive = new TestDrive(driveRoot, c, storage, () => showEditor());
+}
+
+function showBodyEditor(): void {
+  // Body editor screen is added in the next step.
 }
 
 showEditor();

@@ -1,8 +1,15 @@
 import * as THREE from 'three';
 import type { CarDesign } from '../model/car';
-import { computeMassProperties } from '../model/physicsProps';
+import { computeMassProperties, endpointPos } from '../model/physicsProps';
+import { buildBodyMeshes, isSharedGeometry } from '../body/bodyMeshes';
 
-export type PartKind = 'node' | 'beam' | 'wheel' | 'engine';
+export type PartKind = 'node' | 'beam' | 'wheel' | 'engine' | 'part' | 'mount';
+
+/**
+ * How to show the body: 'ghost' — translucent parts + mounts (frame editor), 'mounts' — mounts only,
+ * 'solid' — opaque parts without mounts (test drive), 'hidden' — nothing.
+ */
+export type BodyView = 'ghost' | 'mounts' | 'solid' | 'hidden';
 
 export const COLORS = {
   node: 0xdfe3ea,
@@ -11,7 +18,7 @@ export const COLORS = {
   driven: 0xff8a1f,
   tyre: 0x222326,
   engine: 0xe0352b,
-  com: 0xffd400,
+  com: 0x00e5ff,
   highlight: 0x46e08a,
 };
 
@@ -56,7 +63,7 @@ function tag(o: THREE.Object3D, kind: PartKind, id: string): void {
 }
 
 /** Builds the visual model of a car. Every pickable mesh has userData { kind, id }. */
-export function buildCarMeshes(c: CarDesign, opts: { showCom?: boolean; withWheels?: boolean } = {}): THREE.Group {
+export function buildCarMeshes(c: CarDesign, opts: { showCom?: boolean; withWheels?: boolean; body?: BodyView } = {}): THREE.Group {
   const group = new THREE.Group();
   const nodes = new Map(c.nodes.map((n) => [n.id, n]));
 
@@ -69,8 +76,8 @@ export function buildCarMeshes(c: CarDesign, opts: { showCom?: boolean; withWhee
 
   const up = new THREE.Vector3(0, 1, 0);
   for (const b of c.beams) {
-    const a = nodes.get(b.a);
-    const e = nodes.get(b.b);
+    const a = endpointPos(c, b.a);
+    const e = endpointPos(c, b.b);
     if (!a || !e) continue;
     const va = new THREE.Vector3(a.x, a.y, a.z);
     const ve = new THREE.Vector3(e.x, e.y, e.z);
@@ -105,6 +112,17 @@ export function buildCarMeshes(c: CarDesign, opts: { showCom?: boolean; withWhee
     }
   }
 
+  const view = opts.body ?? 'hidden';
+  if (c.body && view !== 'hidden') {
+    group.add(
+      buildBodyMeshes(c.body, {
+        opacity: view === 'ghost' ? 0.35 : 1,
+        showParts: view === 'ghost' || view === 'solid',
+        showMounts: view === 'ghost' || view === 'mounts',
+      }),
+    );
+  }
+
   if (opts.showCom && c.nodes.length > 0) {
     const { com } = computeMassProperties(c);
     const m = new THREE.Mesh(comGeo, new THREE.MeshBasicMaterial({ color: COLORS.com, depthTest: false }));
@@ -120,7 +138,7 @@ export function buildCarMeshes(c: CarDesign, opts: { showCom?: boolean; withWhee
 export function disposeGroup(g: THREE.Object3D): void {
   g.traverse((o) => {
     if (o instanceof THREE.Mesh) {
-      const shared = o.geometry === nodeGeo || o.geometry === beamGeo || o.geometry === engineGeo || o.geometry === comGeo;
+      const shared = isSharedGeometry(o.geometry) || o.geometry === nodeGeo || o.geometry === beamGeo || o.geometry === engineGeo || o.geometry === comGeo;
       if (!shared) o.geometry.dispose();
       (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
     }
